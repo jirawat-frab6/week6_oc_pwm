@@ -50,6 +50,11 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
+uint16_t ADCFeedBack  = 0,timeoutputloop = 0,PWMoutput = 10000,ADCFlag = 0;
+double x = 0;
+uint64_t _micro = 0;
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,6 +66,8 @@ static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM11_Init(void);
 /* USER CODE BEGIN PFP */
+
+uint64_t micro();
 
 /* USER CODE END PFP */
 
@@ -104,12 +111,38 @@ int main(void)
   MX_TIM11_Init();
   /* USER CODE BEGIN 2 */
 
+  // adc start
+  HAL_ADC_Start_IT(&hadc1);
+  HAL_TIM_Base_Start(&htim3);
+
+
+  //start pwm
+  HAL_TIM_Base_Start(&htim1);
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+  //start micro
+  HAL_TIM_Base_Start_IT(&htim11);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if(ADCFlag){
+		  x = 2000-(3e7*ADCFeedBack/(PWMoutput*((1<<12)-1)));
+		  PWMoutput = ((double)10000/3.3)*((double)3000/(2000-x));
+
+		  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,PWMoutput);
+		  ADCFlag = 0;
+	  }
+
+	  /*if(micro()-timeoutputloop >= 1000){
+		  timeoutputloop = micro();
+
+		  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,PWMoutput);
+	  }*/
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -429,6 +462,22 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
+	ADCFeedBack = HAL_ADC_GetValue(&hadc1);
+	ADCFlag = 1;
+}
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if(htim == &htim11){
+		_micro += (1<<16)-1;
+	}
+}
+
+
+uint64_t micro(){
+	return _micro+ htim11.Instance->CNT;
+}
 
 /* USER CODE END 4 */
 
